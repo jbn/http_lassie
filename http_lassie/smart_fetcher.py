@@ -4,6 +4,7 @@ try:
     from urllib.parse import urlencode
 except ImportError:
     from urllib import urlencode
+from http_lassie.user_agents import random_user_agent
 
 
 ###############################################################################
@@ -99,6 +100,7 @@ class SmartFetcher:
 
         while is_failure and retries > 0:
             try:
+                headers = {'User-Agent':random_user_agent()}
                 if render_json:
                     kwargs = {'proxy': proxy_resource['proxy'].lower(),
                               'timeout': self._max_wait_time,
@@ -113,12 +115,14 @@ class SmartFetcher:
                         kwargs['body'] = urlencode(request_params)
 
                     kwargs['url'] = request_url
+                    user_agent = random_user_agent()
 
                     start_time = time.time()
                     resp = requests.get(self._splash_server + '/render.html',
-                                        params=kwargs)
+                                        params=kwargs, headers=headers)
                 else:
                     kwargs = {'timeout': self._max_wait_time}
+                    kwargs['headers'] = headers
 
                     if proxy_resource['proxy'].startswith('HTTPS'):
                         kwargs['proxies'] = {'https': proxy_resource['proxy']}
