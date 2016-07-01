@@ -92,13 +92,12 @@ class SmartFetcher:
 
         content, resp_time, is_failure = None, -1, True
 
-        # Get the proxy to work with.
-        proxy_resource = get_proxy(self._mimic_server,
-                                   request_url,
-                                   self._proxy_requirements,
-                                   max_wait_time=self._max_wait_time)
-
         while is_failure and retries > 0:
+            # Get the proxy to work with.
+            proxy_resource = get_proxy(self._mimic_server,
+                                       request_url,
+                                       self._proxy_requirements,
+                                       max_wait_time=self._max_wait_time)
             try:
                 headers = {'User-Agent':random_user_agent()}
                 if render_json:
