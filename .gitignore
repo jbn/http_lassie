@@ -2,3 +2,5 @@
 build/
 http_lassie.iml
 *.ipynb
+dist
+MANIFEST
