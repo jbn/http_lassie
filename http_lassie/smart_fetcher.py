@@ -1,3 +1,4 @@
+import json
 import time
 import requests
 try:
@@ -76,7 +77,7 @@ class SmartFetcher:
         self._splash_server = splash_server
         self._proxy_requirements = proxy_requirements or []
         self._splash_config = splash_config or DEFAULT_SPLASH_CONFIG.copy()
-        self._max_wait_time = 60
+        self._max_wait_time = max_wait_time
 
     def __call__(self,
                  request_url,
@@ -87,8 +88,8 @@ class SmartFetcher:
                  validator=always_true,
                  render_json=False,
                  splash_overrides=None,
-                 retries = 3):
-        splash_config = {**self._splash_config, **(splash_overrides or {})}
+                 retries=3):
+
 
         content, resp_time, is_failure = None, -1, True
 
@@ -99,29 +100,32 @@ class SmartFetcher:
                                        self._proxy_requirements,
                                        max_wait_time=self._max_wait_time)
             try:
-                headers = {'User-Agent':random_user_agent()}
+                headers = {'User-Agent': random_user_agent()}
                 if render_json:
-                    kwargs = {'proxy': proxy_resource['proxy'].lower(),
-                              'timeout': self._max_wait_time,
-                              'wait': 10,  # Render wait time
-                              'http_method': http_method}
+                    kwargs = {**self._splash_config,
+                              **(splash_overrides or {})}
+                    kwargs.update({'proxy': proxy_resource['proxy'].lower(),
+                                   'timeout': self._max_wait_time,
+                                   'wait': 10,  # Render wait time
+                                   'http_method': http_method,
+                                   'filters': "nofonts,easylist"})
 
                     # body but use encoded params
                     if request_params:
                         request_url += "?" + urlencode(request_params)
-
-                    if request_data:
+                    elif request_data:
                         kwargs['body'] = urlencode(request_params)
 
                     kwargs['url'] = request_url
-                    user_agent = random_user_agent()
+                    kwargs['headers'] = headers
 
                     start_time = time.time()
-                    resp = requests.get(self._splash_server + '/render.html',
-                                        params=kwargs, headers=headers)
+                    resp = requests.post(self._splash_server + '/render.html',
+                                         data=json.dumps(kwargs),
+                                         headers={"Content-Type": "application/json"})
                 else:
+
                     kwargs = {'timeout': self._max_wait_time}
-                    kwargs['headers'] = headers
 
                     if proxy_resource['proxy'].startswith('HTTPS'):
                         kwargs['proxies'] = {'https': proxy_resource['proxy']}
@@ -132,6 +136,8 @@ class SmartFetcher:
                         kwargs['params'] = request_data
                     if request_data:
                         kwargs['data'] = request_data
+
+                    kwargs['headers'] = headers
 
                     start_time = time.time()
                     resp = requests.request(http_method, request_url, **kwargs)
