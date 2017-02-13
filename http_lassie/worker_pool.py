@@ -2,20 +2,29 @@ from threading import Thread
 from six.moves.queue import Queue
 
 
+def ignore(item, error, submit):
+    pass
+
+
 class WorkerPool:
-    def __init__(self, task_func, n_workers=5, auto_stop=True):
+    def __init__(self, task_func, error_func=ignore, n_workers=5,
+                 auto_stop=True):
         """
         Create a worker pool.
 
         :param task_func: a function with the signature of f(item, submit),
             where submit is the bound `.submit` method of the instantiated
             class (allowing resubmission)
+        :param error_func: a function with the signature of
+            f(item, exception, submit) that gets called on any exception
+            not handled by the task_func
         :param n_workers: number of simultaneous workers (Threaded)
         :param auto_stop: if True, kill each worker in the pool when there
             are no items left to process or items still in processing
         """
         self._task_func = task_func
-        self._auto_stop = True
+        self._error_func = error_func
+        self._auto_stop = auto_stop
 
         self._submitted = 0
         self._finished = 0
@@ -42,7 +51,9 @@ class WorkerPool:
         """
         Submit some item for processing.
         """
-        assert item is not None, "Can't submit a None -- it's the kill value"
+        if item is None:
+            raise ValueError("Can't submit a `None`. It's the kill sentinel")
+
         self._submitted += 1
         self._work_queue.put(item)
 
@@ -70,8 +81,10 @@ class WorkerPool:
             try:
                 self._done_queue.put(self._task_func(item, self.submit))
             except Exception as e:
-                # TODO: Use exception queue and on_error
-                print("Exception {} on {}".format(e, item))
+                try:
+                    self._error_func(item, e, self.submit)
+                except Exception as e:
+                    print("Error in error handler!")
             finally:
                 self._finished += 1
 

@@ -2,12 +2,7 @@ import json
 import time
 import requests
 import traceback
-try:
-    from urllib.parse import urlencode
-except ImportError:
-    from urllib import urlencode
-from http_lassie.user_agents import random_user_agent
-
+from six.moves.urllib.parse import urlencode
 
 ###############################################################################
 #                    __                   __                _                 #
@@ -57,7 +52,10 @@ def release_proxy(mimic_server, proxy_resource, resp_time=-1,
         params['is_failure'] = 'true'
 
     if resp_time >= 0:
+        # Must be positive! XXX: BUG
         params['response_time'] = resp_time
+    else:
+        print("RESP TIME".format(resp_time))
 
     resp = requests.post(mimic_server + "/proxies/release", data=params)
     assert resp.status_code == 200, resp.content
@@ -144,7 +142,7 @@ class SmartFetcher:
         :return: a tuple of (content, success)
         """
 
-        content, resp_time, is_failure = None, -1, True
+        content, resp_time, is_failure = None, 60, True
 
         while is_failure and retries > 0:
             # Get the proxy to work with.
@@ -152,6 +150,12 @@ class SmartFetcher:
                                        request_url,
                                        self._proxy_requirements,
                                        max_wait_time=self._max_wait_time)
+            if proxy_resource['proxy'] is None:
+                time.sleep(60)  # HACK: KLUDGE
+                retries -= 1
+                continue
+
+            status_received = None
             try:
                 headers = {'User-Agent': random_user_agent()}
                 if header_overrides:
@@ -197,16 +201,29 @@ class SmartFetcher:
                     start_time = time.time()
                     resp = requests.request(http_method, request_url, **kwargs)
 
-                assert resp.status_code == 200, (resp.status_code, resp.content)
                 resp_time = time.time() - start_time
                 content = extractor(resp)
-                is_failure = not validator(content)
+                status_received = resp.status_code
+
+                if resp.status_code == 404 or resp.status_code == 500:
+                    is_failure = True
+                    release_proxy(self._mimic_server,
+                                  proxy_resource,
+                                  resp_time,
+                                  False)
+                    break
+                else:
+                    assert resp.status_code == 200, (resp.status_code, resp.content)
+                    is_failure = not validator(content)
             except Exception as e:
                 is_failure = True
                 retries -= 1
                 # TODO: Add better logging
-                print("RETRYING {} on {}".format(retries, e))
+                print("RETRYING {} on {} for {}".format(retries,
+                                                        request_url,
+                                                        status_received))
             finally:
+                # BUG BUG BUB
                 release_proxy(self._mimic_server, proxy_resource, resp_time,
                               is_failure)
 

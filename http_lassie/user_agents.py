@@ -39,4 +39,3 @@ def random_user_agent():
         proportion = USER_AGENTS[i][0]
         if random.random() < proportion / MAX_PROPORTION:
             return USER_AGENTS[i][1]
-
