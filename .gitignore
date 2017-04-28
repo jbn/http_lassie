@@ -1,5 +1,7 @@
 .idea/
 build/
+http_lassie.egg-info/
+*.swp
 http_lassie.iml
 *.ipynb
 dist
