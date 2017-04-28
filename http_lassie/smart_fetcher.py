@@ -110,8 +110,8 @@ def format_exception(url, retries_left, exc_info):
     exc_type, exc_value, exc_traceback = exc_info
     line = exc_traceback.tb_lineno
     file_name = exc_traceback.tb_frame.f_code.co_filename
-    print(EXCEPTION_MSG.format(url, retries_left,
-                               exc_type, exc_value, file_name, line))
+    return EXCEPTION_MSG.format(url, retries_left,
+                                exc_type, exc_value, file_name, line)
 
 
 def diagnostic_extractor(resp):
@@ -222,7 +222,7 @@ class SmartFetcher:
                 retries -= 1
                 print(format_exception(request_url,
                                        retries,
-                                       sys.exc_info()))
+                                       sys.exc_info()) + "\n\n")
                 # TODO: Add better logging
             finally:
                 # BUG BUG BUB
@@ -254,8 +254,8 @@ class SmartFetcher:
         kwargs = {**self._splash_config,
                   **(splash_overrides or {})}
         kwargs.update({'proxy': proxy_resource['proxy'].lower(),
-                       'timeout': self._max_wait_time,
-                       'wait': 10,  # Render wait time
+                       # 'timeout': self._max_wait_time,
+                       #'wait': 10,  # Render wait time
                        'http_method': http_method,
                        'filters': "nofonts,easylist"})
 

@@ -1,3 +1,4 @@
+import logging
 from threading import Thread
 from six.moves.queue import Queue
 
@@ -6,8 +7,12 @@ def ignore(item, error, submit):
     pass
 
 
+def echo_error(item, error, submit):
+    logging.error("Error: {} while processing {}".format(error, item))
+
+
 class WorkerPool:
-    def __init__(self, task_func, error_func=ignore, n_workers=5,
+    def __init__(self, task_func, error_func=echo_error, n_workers=5,
                  auto_stop=True):
         """
         Create a worker pool.
