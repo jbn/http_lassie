@@ -71,7 +71,7 @@ class WorkerPool:
 
         :return: an item from the done queue
         """
-        while not self.is_done() or not self._done_queue.empty():
+        while not self._work_queue.empty() or not self._done_queue.empty():
             yield self._done_queue.get()
 
         if self._auto_stop:
@@ -96,4 +96,10 @@ class WorkerPool:
     def is_done(self):
         return self._submitted == self._finished and self._work_queue.empty()
 
-
+    def stats(self):
+        return {'n_submitted': self._submitted,
+                'n_finished': self._finished,
+                'work_queue_empty': self._work_queue.empty(),
+                'done_queue_empty': self._done_queue.empty(),
+                'living_threads': sum(t.is_alive() for t in self._workers),
+                'is_done': self.is_done()}
