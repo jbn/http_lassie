@@ -71,7 +71,7 @@ class WorkerPool:
 
         :return: an item from the done queue
         """
-        while not self._work_queue.empty() or not self._done_queue.empty():
+        while not self.is_done():
             yield self._done_queue.get()
 
         if self._auto_stop:
