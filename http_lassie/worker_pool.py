@@ -1,6 +1,8 @@
 import logging
-from threading import Thread
+import sys
+from threading import Thread, Lock
 from six.moves.queue import Queue
+from http_lassie.smart_fetcher import format_exception
 
 
 def ignore(item, error, submit):
@@ -8,7 +10,7 @@ def ignore(item, error, submit):
 
 
 def echo_error(item, error, submit):
-    logging.error("Error: {} while processing {}".format(error, item))
+    logging.error(format_exception("[_work]", 0, sys.exc_info()))
 
 
 class WorkerPool:
@@ -27,6 +29,7 @@ class WorkerPool:
         :param auto_stop: if True, kill each worker in the pool when there
             are no items left to process or items still in processing
         """
+        self._lock = Lock()
         self._task_func = task_func
         self._error_func = error_func
         self._auto_stop = auto_stop
@@ -48,9 +51,14 @@ class WorkerPool:
     def stop(self):
         """
         Send each thread the kill sentinel.
+
+        This is a graceful stop. The method then blocks until all threads die.
         """
         for worker in self._workers:
             self._work_queue.put(None)  # Signal end.
+
+        for worker in self._workers:
+            worker.join()
 
     def submit(self, item):
         """
@@ -59,7 +67,8 @@ class WorkerPool:
         if item is None:
             raise ValueError("Can't submit a `None`. It's the kill sentinel")
 
-        self._submitted += 1
+        with self._lock:
+            self._submitted += 1
         self._work_queue.put(item)
 
     def gather(self):
@@ -71,7 +80,7 @@ class WorkerPool:
 
         :return: an item from the done queue
         """
-        while not self.is_done():
+        while not self.is_done() or not self._done_queue.empty():
             yield self._done_queue.get()
 
         if self._auto_stop:
@@ -89,17 +98,19 @@ class WorkerPool:
                 try:
                     self._error_func(item, e, self.submit)
                 except Exception as e:
-                    print("Error in error handler!")
+                    print(format_exception("[_work]", 0, sys.exc_info()))
             finally:
-                self._finished += 1
+                with self._lock:
+                    self._finished += 1
 
     def is_done(self):
         return self._submitted == self._finished and self._work_queue.empty()
 
     def stats(self):
-        return {'n_submitted': self._submitted,
-                'n_finished': self._finished,
-                'work_queue_empty': self._work_queue.empty(),
-                'done_queue_empty': self._done_queue.empty(),
-                'living_threads': sum(t.is_alive() for t in self._workers),
-                'is_done': self.is_done()}
+        with self._lock:
+            return {'n_submitted': self._submitted,
+                    'n_finished': self._finished,
+                    'work_queue_empty': self._work_queue.empty(),
+                    'done_queue_empty': self._done_queue.empty(),
+                    'living_threads': sum(t.is_alive() for t in self._workers),
+                    'is_done': self.is_done()}
